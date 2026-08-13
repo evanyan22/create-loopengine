@@ -30,15 +30,16 @@ npm run cli -- --agent example-agent "what is the weather in Boston?"
 ## Add another agent
 
 1. Copy `agents/example-agent.ts` to `agents/your-agent.ts` and edit its
-   `systemPrompt`, `tools`, and `rules`.
-2. Register it in `agent-registry.ts` — one line, same shape as
-   `example-agent`.
+   `name`, `systemPrompt`, `tools`, and `rules`.
+2. That's it — `agent-registry.ts` discovers it automatically by
+   `AgentConfig.name`, no registration step. Nothing to edit, no import to
+   add, no adapter change.
 3. Call it at `/agents/your-agent/messages`.
 
 ## Project layout
 
 ```
-agent-registry.ts       Maps agent name -> {config, createModelCall}
+agent-registry.ts       Auto-discovers agents/*.ts by AgentConfig.name — nothing to edit here
 agents/example-agent.ts Starter agent: persona, one tool, one permission rule
 adapters/http.ts         HTTP API (streaming + non-streaming)
 adapters/cli.ts          Command-line adapter

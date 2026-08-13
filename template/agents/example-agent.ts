@@ -1,6 +1,7 @@
 // A starting point, not a template to copy verbatim: real persona, real
-// tool, real permission rule. Add more agents by copying this file and
-// registering the new one in agent-registry.ts.
+// tool, real permission rule. Add more agents by copying this file into
+// agents/ under a new filename and a new AgentConfig.name — agent-registry.ts
+// discovers it automatically, nothing to register by hand.
 import { createAnthropicModelCall, type AgentConfig, type ModelCall } from 'loopengine'
 
 export const config: AgentConfig = {

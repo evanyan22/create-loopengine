@@ -42,7 +42,7 @@ A real, standalone project — its own `package.json` depending on
 
 ```
 package.json             Depends on loopengine — your project, not a fork
-agent-registry.ts         Maps agent name -> {config, createModelCall}, one line per agent
+agent-registry.ts         Auto-discovers agents/*.ts by AgentConfig.name — nothing to edit here
 agents/example-agent.ts   Starter agent: persona, one tool, one permission rule
 adapters/http.ts          HTTP API (streaming + non-streaming), routes by agent name
 adapters/cli.ts           Command-line adapter
@@ -50,18 +50,21 @@ adapters/cli.ts           Command-line adapter
 ```
 
 The registry is multi-agent-capable from the start — seeded with one
-example agent, not architecturally limited to one — so adding a second
-agent later is one file plus one line in `agent-registry.ts`, not a
-rewrite. See [loopengine's own README](https://github.com/evanyan22/loopengine)
-for the full `AgentConfig` surface: permission rules, skills, context-budget
-recovery, and how to wire a real model (Anthropic or OpenAI, both included).
+example agent, not architecturally limited to one — built on loopengine's
+own `discoverAgents`: it scans `agents/` and keys each entry by
+`AgentConfig.name`, not the filename, so adding a second agent later is
+one new file, not a rewrite and not a registry edit either. See
+[loopengine's own README](https://github.com/evanyan22/loopengine) for the
+full `AgentConfig` surface: permission rules, skills, context-budget
+recovery, and how to wire a real model (Anthropic, OpenAI, or DeepSeek —
+all three included).
 
 ## Add another agent
 
 1. Copy `agents/example-agent.ts` to `agents/your-agent.ts` and edit its
-   `systemPrompt`, `tools`, and `rules`.
-2. Register it in `agent-registry.ts` — one line, same shape as
-   `example-agent`.
+   `name`, `systemPrompt`, `tools`, and `rules`.
+2. That's it — `agent-registry.ts` discovers it automatically, no
+   registration step.
 3. Call it at `/agents/your-agent/messages`.
 
 ## Adding external tools via Composio
