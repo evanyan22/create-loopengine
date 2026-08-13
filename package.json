@@ -1,9 +1,10 @@
 {
   "name": "create-loopengine",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Scaffold a new loopengine agent project — a runnable HTTP server with one example agent, in your own repo.",
   "license": "MIT",
   "type": "module",
+  "homepage": "https://loopengine.co",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/evanyan22/create-loopengine.git"
