@@ -18,8 +18,12 @@ npm run dev             # HTTP server on :8787
 ```bash
 curl -X POST localhost:8787/agents/example-agent/messages \
   -H 'content-type: application/json' \
-  -d '{"sessionId":"s1","message":"what is the weather in Boston?"}'
+  -d '{"message":"what is the weather in Boston?"}'
 ```
+
+`sessionId` is optional — omit it for a fresh, one-off session (a
+generated id, echoed back in the response as `sessionId` so you can pass
+it in explicitly on a later request to continue that same conversation).
 
 Or from the command line directly, no server needed:
 
