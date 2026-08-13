@@ -13,7 +13,7 @@ clone of loopengine's own source repo.
 ## Usage
 
 ```bash
-npm create loopengine@latest my-agents
+npx create-loopengine@latest my-agents
 cd my-agents
 npm install
 cp .env.example .env   # fill in ANTHROPIC_API_KEY
@@ -36,7 +36,7 @@ Or from the command line directly, no server needed:
 npm run cli -- --agent example-agent "what is the weather in Boston?"
 ```
 
-No name given? `npm create loopengine@latest` on its own scaffolds into
+No name given? `npx create-loopengine@latest` on its own scaffolds into
 `./my-agents`.
 
 ## What you get
