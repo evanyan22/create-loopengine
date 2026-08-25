@@ -9,7 +9,7 @@
     "cli": "tsx adapters/cli.ts"
   },
   "dependencies": {
-    "loopengine": "^0.0.6"
+    "loopengine": "^0.0.17"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

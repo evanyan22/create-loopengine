@@ -40,6 +40,40 @@ npm run cli -- --agent example-agent "what is the weather in Boston?"
    add, no adapter change.
 3. Call it at `/agents/your-agent/messages`.
 
+A flat file like this is enough for most agents. An agent can also be a
+*folder* — `agents/your-agent/index.ts` instead of `agents/your-agent.ts`
+— which unlocks per-agent `tools/`, `skills/`, and `actauth.yml` defaults,
+and lets it have its own subagents (see below). `loopengine`'s own CLI
+scaffolds that folder form for you:
+
+```bash
+npx loopengine add-agent your-agent
+# -> Created agents/your-agent/index.ts
+```
+
+## Composing agents (subagents)
+
+An agent's tools can be other agents. Drop a folder under
+`agents/<name>/subagents/<child>/` and `child` becomes one of `name`'s
+tools automatically — no import, no wiring. This requires `name` itself
+to be in folder form (see above), since a flat file has no folder to nest
+`subagents/` under:
+
+```bash
+npx loopengine add-agent support-orchestrator
+npx loopengine add-subagent support-orchestrator billing-agent
+```
+
+`billing-agent` is then a normal `AgentConfig` (own tools, own
+permission rules) plus one required field, `toolDescription` — the text
+`support-orchestrator`'s model reads to decide when to delegate to it.
+Calling that tool runs `billing-agent`'s whole loop to completion and
+returns only its final answer; `support-orchestrator` never sees its
+turns or tool calls. See
+[loopengine's own README section on subagents](https://github.com/evanyan22/loopengine#4-subagents--an-agent-as-another-agents-tool)
+for nesting, permission scoping, and the tradeoffs worth knowing before
+reaching for this.
+
 ## Project layout
 
 ```
