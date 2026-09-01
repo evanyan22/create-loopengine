@@ -31,6 +31,23 @@ Or from the command line directly, no server needed:
 npm run cli -- --agent example-agent "what is the weather in Boston?"
 ```
 
+## Admin UI
+
+`npm run dev`, then open:
+
+- `http://localhost:8787/agents/config` — create agents, edit system
+  prompts and models, connect Composio tool sources, and manage each
+  agent's permission rules and skills, all from the browser. "Create new
+  agent" writes a real folder under `agents/` and registers it live, no
+  restart needed.
+- `http://localhost:8787/playground` — send a real message to any agent
+  and watch its tool calls and permission decisions happen live, approve
+  or deny a gated call right there.
+
+Both are wide open by default (local-only convenience) — set
+`LOOPENGINE_ADMIN_AUTH="user:pass"` in `.env` before deploying anywhere
+reachable by anyone but you (see `.env.example`).
+
 ## Add another agent
 
 1. Copy `agents/example-agent/` to `agents/your-agent/` — `index.ts`
