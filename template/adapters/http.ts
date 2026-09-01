@@ -18,12 +18,35 @@
 // Owns: routing by agent name, request/response shape, and (via
 // SessionStore.withSession) making sure two concurrent requests for the
 // same session don't race on read-modify-write of that session's history.
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createSessionStore, runAgent, type AgentConfig } from 'loopengine'
 import { getEntry, type RegistryEntry } from '../agent-registry.js'
 
 const sessions = createSessionStore()
+
+// Off entirely (every route open, no setup needed) when LOOPENGINE_ADMIN_AUTH
+// isn't set — meant to run locally with zero config by default. Set it
+// ("user:pass") before deploying anywhere reachable by anyone but you.
+const adminAuth = process.env.LOOPENGINE_ADMIN_AUTH
+if (!adminAuth) {
+  console.warn(
+    '[my-agents] LOOPENGINE_ADMIN_AUTH is not set — every route on this server (including conversation history) is open to anyone who can reach it. Set LOOPENGINE_ADMIN_AUTH="user:pass" to require HTTP Basic Auth.',
+  )
+}
+
+// Compares the whole "user:pass" string as one shared secret, not username
+// and password separately. timingSafeEqual requires equal-length buffers,
+// so length is checked first — a length mismatch isn't sensitive
+// information worth spending a constant-time comparison to protect.
+function isAuthorized(req: IncomingMessage): boolean {
+  if (!adminAuth) return true
+  const header = req.headers.authorization
+  if (!header || !header.startsWith('Basic ')) return false
+  const provided = Buffer.from(header.slice('Basic '.length), 'base64')
+  const expected = Buffer.from(adminAuth)
+  return provided.length === expected.length && timingSafeEqual(provided, expected)
+}
 
 // Deriving a session key from something richer than a plain client-supplied
 // id (a customer's email, a Slack channel, ...) is business logic specific
@@ -130,6 +153,13 @@ async function handleMessagesStream(req: IncomingMessage, res: ServerResponse, a
 }
 
 const server = createServer(async (req, res) => {
+  if (!isAuthorized(req)) {
+    res
+      .writeHead(401, { 'content-type': 'application/json', 'www-authenticate': 'Basic realm="my-agents"' })
+      .end(JSON.stringify({ error: 'authorization required' }))
+    return
+  }
+
   try {
     const streamMatch = req.method === 'POST' && req.url?.match(/^\/agents\/([^/]+)\/messages\/stream$/)
     if (streamMatch) {
