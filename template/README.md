@@ -33,23 +33,30 @@ npm run cli -- --agent example-agent "what is the weather in Boston?"
 
 ## Add another agent
 
-1. Copy `agents/example-agent.ts` to `agents/your-agent.ts` and edit its
-   `name`, `systemPrompt`, `tools`, and `rules`.
-2. That's it — `agent-registry.ts` discovers it automatically by
+1. Copy `agents/example-agent/` to `agents/your-agent/` — `index.ts`
+   (persona + which tools), `tools/` (one file per tool), `actauth.yml`
+   (the permission story), and `skills/` if it needs any.
+2. Edit `index.ts`'s `name` and `systemPrompt`, and `tools/index.ts`'s
+   tool list. `rules`/`skillsDirs` don't need touching — they're left
+   unset in `index.ts` on purpose, so they keep defaulting to
+   `actauth.yml`/`skills/` next to it.
+3. That's it — `agent-registry.ts` discovers it automatically by
    `AgentConfig.name`, no registration step. Nothing to edit, no import to
    add, no adapter change.
-3. Call it at `/agents/your-agent/messages`.
+4. Call it at `/agents/your-agent/messages`.
 
-A flat file like this is enough for most agents. An agent can also be a
-*folder* — `agents/your-agent/index.ts` instead of `agents/your-agent.ts`
-— which unlocks per-agent `tools/`, `skills/`, and `actauth.yml` defaults,
-and lets it have its own subagents (see below). `loopengine`'s own CLI
-scaffolds that folder form for you:
+`loopengine`'s own CLI scaffolds this same folder shape for you, if you'd
+rather start empty than copy `example-agent/`:
 
 ```bash
 npx loopengine add-agent your-agent
 # -> Created agents/your-agent/index.ts
 ```
+
+An agent can also be a single flat file — `agents/your-agent.ts` instead
+of a folder — if it's simple enough not to need its own `tools/`,
+`skills/`, or `actauth.yml`. It just can't have subagents (see below),
+since there's no folder for `subagents/` to live under.
 
 ## Composing agents (subagents)
 
@@ -77,10 +84,13 @@ reaching for this.
 ## Project layout
 
 ```
-agent-registry.ts       Auto-discovers agents/*.ts by AgentConfig.name — nothing to edit here
-agents/example-agent.ts Starter agent: persona, one tool, one permission rule
-adapters/http.ts         HTTP API (streaming + non-streaming)
-adapters/cli.ts          Command-line adapter
+agent-registry.ts                Auto-discovers agents/* by AgentConfig.name — nothing to edit here
+agents/example-agent/index.ts    Starter agent: persona, one tool
+agents/example-agent/tools/      One tool (get_weather), aggregated in tools/index.ts
+agents/example-agent/actauth.yml One permission rule (allow get_weather), default_decision: ask
+agents/example-agent/skills/     One skill (convert-temperature) — instructions, not a tool call
+adapters/http.ts                  HTTP API (streaming + non-streaming)
+adapters/cli.ts                   Command-line adapter
 ```
 
 ## Adding external tools via Composio

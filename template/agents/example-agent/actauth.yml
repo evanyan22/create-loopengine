@@ -1,0 +1,12 @@
+# The permission story for this agent: which tool, which rule, allow or
+# ask. Loaded automatically because index.ts doesn't set `rules` itself —
+# omitting it defaults to this file, agents/<name>/actauth.yml, resolved
+# from wherever you run the process (see AgentConfig.rules's own doc
+# comment in loopengine for the full resolution rules).
+default_decision: ask
+
+rules:
+  - name: get-weather-always-allowed
+    scope: "*/*"
+    tool: get_weather
+    decision: allow
