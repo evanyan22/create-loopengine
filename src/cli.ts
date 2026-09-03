@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -26,6 +26,11 @@ export function scaffold(options: ScaffoldOptions): string {
 
   mkdirSync(destination, { recursive: true })
   cpSync(templateDir, destination, { recursive: true })
+
+  // npm strips any .gitignore (even nested ones) when publishing a package,
+  // so the template ships it as `_gitignore` and this renames it back —
+  // same workaround create-vite/create-react-app use for the same reason.
+  renameSync(join(destination, '_gitignore'), join(destination, '.gitignore'))
 
   const pkgPath = join(destination, 'package.json')
   const pkg = readFileSync(pkgPath, 'utf8').replace('__PROJECT_NAME__', name)

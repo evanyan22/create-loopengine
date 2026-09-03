@@ -14,6 +14,10 @@ function makeTemplate(): string {
   writeFileSync(join(templateDir, 'package.json'), JSON.stringify({ name: '__PROJECT_NAME__', private: true }))
   writeFileSync(join(templateDir, 'README.md'), '# __PROJECT_NAME__\n')
   writeFileSync(join(templateDir, 'agents', 'example-agent.ts'), 'export const config = {}\n')
+  // Ships as `_gitignore`, not `.gitignore` — npm strips a real .gitignore
+  // (even nested ones) when publishing, so scaffold() renames it back after
+  // copying. The fixture mirrors the real template/_gitignore for that reason.
+  writeFileSync(join(templateDir, '_gitignore'), 'node_modules\ndist\n')
   return templateDir
 }
 
@@ -29,6 +33,17 @@ describe('scaffold', () => {
     expect(existsSync(join(destination, 'agents', 'example-agent.ts'))).toBe(true)
     expect(JSON.parse(readFileSync(join(destination, 'package.json'), 'utf8')).name).toBe('my-agents')
     expect(readFileSync(join(destination, 'README.md'), 'utf8')).toContain('# my-agents')
+  })
+
+  it('renames the template\'s _gitignore to .gitignore in the scaffolded project', () => {
+    const templateDir = makeTemplate()
+    const parent = mkdtempSync(join(tmpdir(), 'create-loopengine-dest-'))
+    const destination = join(parent, 'my-agents')
+
+    scaffold({ name: 'my-agents', destinationDir: destination, templateDir })
+
+    expect(existsSync(join(destination, '_gitignore'))).toBe(false)
+    expect(readFileSync(join(destination, '.gitignore'), 'utf8')).toContain('node_modules')
   })
 
   it('refuses to overwrite an existing destination', () => {
