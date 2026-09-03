@@ -144,3 +144,117 @@ describe('upgradeProject', () => {
     expect(result.files.find((f) => f.file === 'agent-registry.ts')?.status).toBe('skipped')
   })
 })
+
+describe('upgradeProject dependency bumps', () => {
+  it('bumps loopengine/actauth/skillgarden ranges to ^<latest> when present, leaves other deps and package.json untouched otherwise, and runs npm install', () => {
+    const baseTemplateDir = makeTemplateDir('line3')
+    const currentTemplateDir = makeTemplateDir('line3')
+    const projectDir = makeProjectDir('1.0.0', 'line1\nline2\nline3\nline4\nline5\n')
+    writeFileSync(
+      join(projectDir, 'package.json'),
+      JSON.stringify({ dependencies: { loopengine: '^0.1.6', actauth: '^0.0.12', 'some-other-package': '^1.0.0' } }),
+    )
+    const installCalls: string[] = []
+
+    const result = upgradeProject({
+      projectDir,
+      currentTemplateDir,
+      resolveBaseTemplateDir: () => baseTemplateDir,
+      resolveLatestVersion: (pkg) => (pkg === 'loopengine' ? '0.1.7' : '0.0.13'),
+      runNpmInstall: (dir) => installCalls.push(dir),
+    })
+
+    expect(result.dependencies).toEqual([
+      { name: 'loopengine', from: '^0.1.6', to: '^0.1.7' },
+      { name: 'actauth', from: '^0.0.12', to: '^0.0.13' },
+    ])
+    expect(result.npmInstall).toEqual({ ok: true })
+    expect(installCalls).toEqual([projectDir])
+    const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
+    expect(pkg.dependencies).toEqual({ loopengine: '^0.1.7', actauth: '^0.0.13', 'some-other-package': '^1.0.0' })
+  })
+
+  it('never adds a dependency the project did not already have', () => {
+    const baseTemplateDir = makeTemplateDir('line3')
+    const currentTemplateDir = makeTemplateDir('line3')
+    const projectDir = makeProjectDir('1.0.0', 'line1\nline2\nline3\nline4\nline5\n')
+    writeFileSync(join(projectDir, 'package.json'), JSON.stringify({ dependencies: { loopengine: '^0.1.6' } }))
+
+    const result = upgradeProject({
+      projectDir,
+      currentTemplateDir,
+      resolveBaseTemplateDir: () => baseTemplateDir,
+      resolveLatestVersion: () => '0.1.7',
+      runNpmInstall: () => {},
+    })
+
+    expect(result.dependencies).toEqual([{ name: 'loopengine', from: '^0.1.6', to: '^0.1.7' }])
+    const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
+    expect(pkg.dependencies).toEqual({ loopengine: '^0.1.7' })
+    expect('actauth' in pkg.dependencies).toBe(false)
+  })
+
+  it('does not run npm install when nothing needed bumping', () => {
+    const baseTemplateDir = makeTemplateDir('line3')
+    const currentTemplateDir = makeTemplateDir('line3')
+    const projectDir = makeProjectDir('1.0.0', 'line1\nline2\nline3\nline4\nline5\n')
+    writeFileSync(join(projectDir, 'package.json'), JSON.stringify({ dependencies: { loopengine: '^0.1.7' } }))
+    let installCalled = false
+
+    const result = upgradeProject({
+      projectDir,
+      currentTemplateDir,
+      resolveBaseTemplateDir: () => baseTemplateDir,
+      resolveLatestVersion: () => '0.1.7', // already current
+      runNpmInstall: () => {
+        installCalled = true
+      },
+    })
+
+    expect(result.dependencies).toEqual([])
+    expect(result.npmInstall).toBeUndefined()
+    expect(installCalled).toBe(false)
+  })
+
+  it('reports a failed npm install without throwing — the file merge and package.json bump already succeeded', () => {
+    const baseTemplateDir = makeTemplateDir('line3')
+    const currentTemplateDir = makeTemplateDir('line3')
+    const projectDir = makeProjectDir('1.0.0', 'line1\nline2\nline3\nline4\nline5\n')
+    writeFileSync(join(projectDir, 'package.json'), JSON.stringify({ dependencies: { loopengine: '^0.1.6' } }))
+
+    const result = upgradeProject({
+      projectDir,
+      currentTemplateDir,
+      resolveBaseTemplateDir: () => baseTemplateDir,
+      resolveLatestVersion: () => '0.1.7',
+      runNpmInstall: () => {
+        throw new Error('offline')
+      },
+    })
+
+    expect(result.npmInstall).toEqual({ ok: false, error: 'offline' })
+    // The bump itself still landed on disk despite the install failing.
+    const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
+    expect(pkg.dependencies.loopengine).toBe('^0.1.7')
+  })
+
+  it('is a no-op, with no npm install, for a project with no package.json at all', () => {
+    const baseTemplateDir = makeTemplateDir('line3')
+    const currentTemplateDir = makeTemplateDir('line3')
+    const projectDir = makeProjectDir('1.0.0', 'line1\nline2\nline3\nline4\nline5\n')
+    let installCalled = false
+
+    const result = upgradeProject({
+      projectDir,
+      currentTemplateDir,
+      resolveBaseTemplateDir: () => baseTemplateDir,
+      resolveLatestVersion: () => '0.1.7',
+      runNpmInstall: () => {
+        installCalled = true
+      },
+    })
+
+    expect(result.dependencies).toEqual([])
+    expect(installCalled).toBe(false)
+  })
+})

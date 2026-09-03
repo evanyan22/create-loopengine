@@ -108,10 +108,25 @@ export interface UpgradeFileResult {
   status: UpgradeFileStatus
 }
 
+export interface UpgradeDependencyResult {
+  name: string
+  from: string
+  to: string
+}
+
 export interface UpgradeResult {
   fromVersion: string
   toVersion: string
   files: UpgradeFileResult[]
+  /** Which of loopengine/actauth/skillgarden actually had their
+   * package.json range bumped — only ones already present as a
+   * dependency, never newly added (see bumpDependencies's own doc
+   * comment). Empty if the project has no package.json, or every present
+   * one was already at the latest range. */
+  dependencies: UpgradeDependencyResult[]
+  /** Only attempted when `dependencies` is non-empty — running `npm
+   * install` for a project with nothing to bump would be pointless. */
+  npmInstall?: { ok: true } | { ok: false; error: string }
 }
 
 export interface UpgradeOptions {
@@ -129,6 +144,13 @@ export interface UpgradeOptions {
    * (a real `npm pack`). Test-only seam to avoid hitting the real
    * registry for a fixture "old" template. */
   resolveBaseTemplateDir?: (version: string) => string
+  /** Resolves a package's current latest version — defaults to a real
+   * `npm view <pkg> version`. Test-only seam to avoid hitting the real
+   * registry. */
+  resolveLatestVersion?: (pkg: string) => string
+  /** Runs `npm install` in projectDir — defaults to a real one. Test-only
+   * seam to avoid actually installing anything during tests. */
+  runNpmInstall?: (projectDir: string) => void
 }
 
 // npm keeps every published tarball forever, so the historical template
@@ -241,9 +263,80 @@ export function upgradeProject(options: UpgradeOptions = {}): UpgradeResult {
 
   const files = UPGRADE_CANDIDATE_FILES.map((candidate) => upgradeFile(candidate, baseTemplateDir, currentTemplateDir, projectDir))
 
+  const resolveLatestVersion = options.resolveLatestVersion ?? resolveLatestVersionFromNpm
+  const dependencies = bumpDependencies(projectDir, resolveLatestVersion)
+
+  let npmInstall: UpgradeResult['npmInstall']
+  if (dependencies.length > 0) {
+    const install = options.runNpmInstall ?? runRealNpmInstall
+    try {
+      install(projectDir)
+      npmInstall = { ok: true }
+    } catch (err) {
+      // Non-fatal — the file merge and the package.json bump already
+      // succeeded and are on disk either way; a failed install (offline,
+      // a registry hiccup) just means the operator runs `npm install`
+      // themselves, the same single command this was trying to save them
+      // from typing, not a reason to unwind everything already done.
+      npmInstall = { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
   writeFileSync(provenancePath, JSON.stringify({ version: toVersion }, null, 2) + '\n')
 
-  return { fromVersion, toVersion, files }
+  return { fromVersion, toVersion, files, dependencies, npmInstall }
+}
+
+function resolveLatestVersionFromNpm(pkg: string): string {
+  return execFileSync('npm', ['view', pkg, 'version'], { stdio: 'pipe' }).toString().trim()
+}
+
+function runRealNpmInstall(projectDir: string): void {
+  execFileSync('npm', ['install'], { cwd: projectDir, stdio: 'pipe' })
+}
+
+// Only loopengine/actauth/skillgarden — the three packages a scaffolded
+// project's own adapters/http.ts can import directly (see this repo's own
+// README on why: template code that imports a package must declare it as
+// its own direct dependency, not rely on loopengine's transitive one) —
+// and only ones already present in the project's own package.json.
+// Deliberately never *adds* a dependency a project doesn't already have:
+// this command upgrades what's there, it doesn't decide what a project
+// should depend on.
+const UPGRADABLE_DEPENDENCIES = ['loopengine', 'actauth', 'skillgarden'] as const
+
+/** Bumps package.json's dependency ranges for whichever of
+ * loopengine/actauth/skillgarden are already present, to `^<latest>` —
+ * run automatically as part of `upgrade` (not left as a manual follow-up
+ * step) because a project whose merged template code now calls a newer
+ * export, but whose installed package is still old, fails silently: no
+ * conflict marker, no build error, just a feature that's quietly not
+ * there yet (confirmed live — this exact gap is what prompted adding this
+ * function in the first place, see this repo's own git history). Returns
+ * [] untouched if the project has no package.json at all, same
+ * "can't merge what isn't there" reasoning upgradeFile's own missing-file
+ * check uses. */
+function bumpDependencies(projectDir: string, resolveLatestVersion: (pkg: string) => string): UpgradeDependencyResult[] {
+  const pkgPath = join(projectDir, 'package.json')
+  if (!existsSync(pkgPath)) return []
+
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { dependencies?: Record<string, string> }
+  const deps = pkg.dependencies
+  if (!deps) return []
+
+  const changes: UpgradeDependencyResult[] = []
+  for (const name of UPGRADABLE_DEPENDENCIES) {
+    const currentRange = deps[name]
+    if (currentRange === undefined) continue
+    const latest = resolveLatestVersion(name)
+    const newRange = `^${latest}`
+    if (currentRange === newRange) continue
+    deps[name] = newRange
+    changes.push({ name, from: currentRange, to: newRange })
+  }
+
+  if (changes.length > 0) writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+  return changes
 }
 
 function parseUpgradeArgs(argv: string[]): { from?: string } {
@@ -266,7 +359,17 @@ function printUpgradeSummary(result: UpgradeResult): void {
   if (conflicted.length > 0) {
     console.log(`${conflicted.length} file(s) have <<<<<<< conflict markers to resolve by hand before this will build.`)
   } else {
-    console.log('No conflicts. Run `npm install loopengine@latest` to pick up any library-side changes too.')
+    console.log('No conflicts.')
+  }
+
+  if (result.dependencies.length > 0) {
+    console.log()
+    for (const dep of result.dependencies) console.log(`  ${dep.name}: ${dep.from} -> ${dep.to}`)
+    if (result.npmInstall?.ok) {
+      console.log('npm install completed.')
+    } else if (result.npmInstall) {
+      console.log(`npm install failed (${result.npmInstall.error}) — run it yourself to finish picking up the new versions.`)
+    }
   }
 }
 

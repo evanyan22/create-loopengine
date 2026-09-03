@@ -115,10 +115,17 @@ Each of the five template-owned files gets one of:
   as any git merge conflict — resolve them by hand, then `npx tsc
   --noEmit` to confirm it builds.
 
-`upgrade` never touches `agents/`, `README.md`, `.env.example`, or
-`package.json`'s own dependency versions — run `npm install
-loopengine@latest` (and `actauth`/`skillgarden` if you use them directly)
-separately to pick those up.
+`upgrade` also bumps whichever of `loopengine`/`actauth`/`skillgarden`
+are already in your `package.json` to their latest published version
+(never adds one you don't already depend on) and runs `npm install` for
+you — a merged file that now calls a newer export is a silent, hard-to-
+notice failure if the installed package hasn't actually caught up, so
+this isn't left as a manual step. If the install itself fails (offline,
+a registry hiccup), the version bump is still written to `package.json`;
+just run `npm install` yourself to finish.
+
+`upgrade` never touches `agents/`, `README.md`, `.env.example`, or any
+dependency *other* than those three.
 
 ## Running in production
 
