@@ -120,6 +120,49 @@ Each of the five template-owned files gets one of:
 loopengine@latest` (and `actauth`/`skillgarden` if you use them directly)
 separately to pick those up.
 
+## Running in production
+
+`npm run dev` (`tsx watch`) restarts on every file change — fine for
+local iteration, wrong for a real server, since a restart drops every
+in-flight request and any pending live approval/question (see
+loopengine's own README on durable vs. live approvers if that matters to
+you). Use [pm2](https://pm2.keymetrics.io/) to run the plain, non-watch
+server instead, with restart-on-crash:
+
+```bash
+pm2 start npx --name my-agents --interpreter none -- loopengine serve
+pm2 save                # persist across reboots
+pm2 startup              # (one-time) launch pm2 itself on boot
+```
+
+`--interpreter none` matters — without it pm2 may try to run `npx`
+through `node` directly, which fails since it's a shell-invokable binary,
+not a bare `.js` file. `--` separates pm2's own flags from the command's
+own args (`loopengine serve`).
+
+Two gotchas worth knowing before they cost you a debugging session:
+
+- **`npm` is not `npx`.** `pm2 start npm --name my-agents -- loopengine
+  serve` does *not* work — `npm <args>` treats its args as npm's own
+  subcommands, not a binary to run, so it fails with `Unknown command:
+  "loopengine"`. If you'd rather invoke via `npm`, add a `"start":
+  "loopengine serve"` script to `package.json` first, then `pm2 start npm
+  --name my-agents -- start` (npm special-cases `start` as a shorthand
+  for running that script, unlike arbitrary script names).
+- **pm2 remembers a name's original `cwd`/script, not whatever you pass
+  next time.** Running `pm2 start ... --name my-agents` again after
+  moving/recreating the project directory just restarts the *already-
+  registered* process with its *original* path — your new files are
+  never even read. Run `pm2 delete my-agents` first if the project's
+  location changed, then start fresh.
+
+`pm2 logs my-agents` tails output; `pm2 restart my-agents` after any
+manual edit to `adapters/http.ts`/`adapters/cli.ts`/`agent-registry.ts`
+(see "Upgrading" above) or an env var change — those don't take effect
+until the process restarts. Adding a skill or tool through the Admin UI
+does *not* need a restart — that's applied to the already-running process
+directly.
+
 ## Status
 
 Verified end to end against the real published packages: `npm create
