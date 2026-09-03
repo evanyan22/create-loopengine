@@ -61,8 +61,8 @@ own `discoverAgents`: it scans `agents/` and keys each entry by
 one new file, not a rewrite and not a registry edit either. See
 [loopengine's own README](https://github.com/evanyan22/loopengine) for the
 full `AgentConfig` surface: permission rules, skills, context-budget
-recovery, and how to wire a real model (Anthropic, OpenAI, or DeepSeek —
-all three included).
+recovery, and how to wire a real model (Anthropic, OpenAI, DeepSeek,
+Kimi, GLM, or Gemini — all six included).
 
 ## Add another agent
 
