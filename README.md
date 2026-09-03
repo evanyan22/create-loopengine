@@ -51,6 +51,7 @@ agents/example-agent.ts   Starter agent: persona, one tool, one permission rule
 adapters/http.ts          HTTP API (streaming + non-streaming), routes by agent name
 adapters/cli.ts           Command-line adapter
 .env.example              ANTHROPIC_API_KEY / OPENAI_API_KEY / REDIS_URL
+.create-loopengine.json   Which version this project was scaffolded from — see "Upgrading" below
 ```
 
 The registry is multi-agent-capable from the start — seeded with one
@@ -83,6 +84,41 @@ for the pattern, and `agents/file-agent.ts` in that repo for a complete,
 working example. Not wired in here by default: it needs the `composio` CLI
 installed and an authenticated account (`composio link <toolkit>`) first,
 so it's a deliberate next step, not part of this starter agent.
+
+## Upgrading
+
+`npm install loopengine@latest` alone only picks up library-side changes
+— `adapters/http.ts`, `adapters/cli.ts`, and `agent-registry.ts` are
+copied into your project once at scaffold time and never touched by npm
+again, so template improvements (new routes, bug fixes) don't reach an
+existing project on their own. `upgrade` closes that gap with a real
+three-way merge — the same technique `git merge` uses — so your own
+edits to those files survive:
+
+```bash
+npx create-loopengine@latest upgrade
+```
+
+Run from inside your project. It merges the current template against
+whichever `create-loopengine` version your project was originally
+scaffolded from (recorded in `.create-loopengine.json`, written
+automatically at scaffold time — pass `--from <version>` if that file is
+missing, e.g. for a project scaffolded before this command existed).
+Each of the five template-owned files gets one of:
+
+- **unchanged** — the template never touched this file between your
+  version and the latest; nothing to merge, nothing overwritten.
+- **updated** — merged cleanly; your own edits and the template's own
+  changes didn't overlap.
+- **conflict** — you edited the same lines the template changed. The
+  file is written with real `<<<<<<<`/`=======`/`>>>>>>>` markers, same
+  as any git merge conflict — resolve them by hand, then `npx tsc
+  --noEmit` to confirm it builds.
+
+`upgrade` never touches `agents/`, `README.md`, `.env.example`, or
+`package.json`'s own dependency versions — run `npm install
+loopengine@latest` (and `actauth`/`skillgarden` if you use them directly)
+separately to pick those up.
 
 ## Status
 
