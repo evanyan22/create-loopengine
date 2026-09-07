@@ -85,6 +85,9 @@ import {
   deleteSkill,
   SkillInvalidIdError,
   SkillNotFoundError,
+  listDeclaredEnvVars,
+  setEnvVar,
+  EnvVarNameError,
   listSkillgardenCatalog,
   readSkillgardenCatalogEntry,
   addSkillgardenSkillToAgent,
@@ -915,6 +918,53 @@ function handleSkillDelete(res: ServerResponse, agentName: string, skillId: stri
     deleteSkill(agentName, skillId)
   } catch (err) {
     const status = err instanceof SkillNotFoundError ? 404 : err instanceof SkillInvalidIdError ? 400 : 500
+    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
+    return
+  }
+  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true }))
+}
+
+// Backs the Admin UI's "Environment" section — every env var a package
+// (see loopengine's own PACKAGES.md, bin/package-manager.ts) declared it
+// needs for this agent, with set/not-set status only. Read-only, so no
+// extra auth gate beyond the normal Basic Auth middleware every admin
+// route already has.
+function handleEnvGet(res: ServerResponse, agentName: string): void {
+  if (!getEntry(agentName)) {
+    res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: `unknown agent '${agentName}'` }))
+    return
+  }
+  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(listDeclaredEnvVars(agentName)))
+}
+
+// Writes a raw secret value into .env — meaningfully more sensitive than
+// the rest of the admin surface (config/business data vs. an actual
+// credential), so unlike every other route here, this one refuses
+// outright when LOOPENGINE_ADMIN_AUTH isn't set at all, rather than just
+// warning at startup and proceeding open like the rest of this file does
+// (see loopengine's own PACKAGES.md, "Managing package secrets in the
+// Admin UI" — LOOPENGINE_ADMIN_AUTH being optional today is an
+// acceptable gap for config, not for secrets).
+async function handleEnvPut(req: IncomingMessage, res: ServerResponse, agentName: string, varName: string): Promise<void> {
+  if (!adminAuth) {
+    res.writeHead(403, { 'content-type': 'application/json' }).end(
+      JSON.stringify({ error: 'Refusing to set an env var without LOOPENGINE_ADMIN_AUTH configured — set it before managing secrets through this route.' }),
+    )
+    return
+  }
+  if (!getEntry(agentName)) {
+    res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: `unknown agent '${agentName}'` }))
+    return
+  }
+  const body = await readJsonBody(req)
+  if (typeof body.value !== 'string') {
+    res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'value is required' }))
+    return
+  }
+  try {
+    setEnvVar(varName, body.value)
+  } catch (err) {
+    const status = err instanceof EnvVarNameError ? 400 : 500
     res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
     return
   }
@@ -2117,6 +2167,19 @@ const server = createServer(async (req, res) => {
     }
     if (skillMatch && req.method === 'DELETE') {
       handleSkillDelete(res, decodeURIComponent(skillMatch[1]), decodeURIComponent(skillMatch[2]))
+      return
+    }
+
+    // Backs the Admin UI's "Environment" section — see
+    // handleEnvGet/handleEnvPut's own doc comments above.
+    const envListMatch = pathname.match(/^\/agents\/([^/]+)\/env$/)
+    if (envListMatch && req.method === 'GET') {
+      handleEnvGet(res, decodeURIComponent(envListMatch[1]))
+      return
+    }
+    const envVarMatch = pathname.match(/^\/agents\/([^/]+)\/env\/([^/]+)$/)
+    if (envVarMatch && req.method === 'PUT') {
+      await handleEnvPut(req, res, decodeURIComponent(envVarMatch[1]), decodeURIComponent(envVarMatch[2]))
       return
     }
 
