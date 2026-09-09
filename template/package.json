@@ -9,7 +9,7 @@
     "cli": "tsx adapters/cli.ts"
   },
   "dependencies": {
-    "loopengine": "^0.1.22",
+    "loopengine": "^0.1.23",
     "actauth": "^0.0.12"
   },
   "devDependencies": {
