@@ -9,9 +9,8 @@
     "cli": "tsx adapters/cli.ts"
   },
   "dependencies": {
-    "loopengine": "^0.1.15",
-    "actauth": "^0.0.12",
-    "skillgarden": "^0.0.9"
+    "loopengine": "^0.1.19",
+    "actauth": "^0.0.12"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -91,7 +91,6 @@ import {
   listSkillgardenCatalog,
   readSkillgardenCatalogEntry,
   addSkillgardenSkillToAgent,
-  SkillgardenUnavailableError,
   readActauthConfig,
   addActauthRule,
   updateActauthRule,
@@ -122,7 +121,7 @@ import {
   type PendingQuestion,
   WebhookNotifier,
 } from 'loopengine'
-import { SkillGarden } from 'skillgarden'
+import { SkillGarden } from 'loopengine'
 import type { Decision, PendingApproval } from 'actauth'
 import type { LoopEvent } from 'loopengine'
 
@@ -989,8 +988,7 @@ function handleSkillgardenCatalogGet(res: ServerResponse): void {
     const catalog = listSkillgardenCatalog()
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(catalog))
   } catch (err) {
-    const status = err instanceof SkillgardenUnavailableError ? 503 : 500
-    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
+    res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
   }
 }
 
@@ -1006,8 +1004,7 @@ function handleSkillgardenCatalogEntryGet(res: ServerResponse, category: string,
     const entry = readSkillgardenCatalogEntry(category, id)
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(entry))
   } catch (err) {
-    const status = err instanceof SkillgardenUnavailableError ? 503 : 404
-    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
+    res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
   }
 }
 
@@ -1029,7 +1026,7 @@ async function handleSkillgardenCatalogAdd(req: IncomingMessage, res: ServerResp
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, id: result.id }))
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    const status = err instanceof SkillgardenUnavailableError ? 503 : /already exists/.test(message) ? 409 : /^Unknown skill/.test(message) ? 404 : 500
+    const status = /already exists/.test(message) ? 409 : /^Unknown skill/.test(message) ? 404 : 500
     res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: message }))
   }
 }
