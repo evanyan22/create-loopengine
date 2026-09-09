@@ -88,9 +88,6 @@ import {
   listDeclaredEnvVars,
   setEnvVar,
   EnvVarNameError,
-  listSkillgardenCatalog,
-  readSkillgardenCatalogEntry,
-  addSkillgardenSkillToAgent,
   readActauthConfig,
   addActauthRule,
   updateActauthRule,
@@ -968,67 +965,6 @@ async function handleEnvPut(req: IncomingMessage, res: ServerResponse, agentName
     return
   }
   res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true }))
-}
-
-// Backs the Skills tab's "Browse skillgarden catalog" section — a
-// read-only, agent-independent list of everything skillgarden ships in
-// its own bundled registry (see loopengine's own web/skillgarden-admin.ts).
-// Not wrapped in a per-agent :name segment since the catalog itself
-// isn't scoped to any one agent; only the POST below (actually
-// installing an entry) is.
-function handleSkillgardenCatalogGet(res: ServerResponse): void {
-  try {
-    // Computed before writeHead, not inlined into .end()'s own argument —
-    // res.writeHead(200, ...) commits the status line the instant it's
-    // called, so a throw evaluated *after* it (as it would be if it were
-    // inlined as .end()'s argument) leaves headers already sent as 200
-    // with no body, and the catch block's own writeHead(status, ...)
-    // then fails outright (ERR_HTTP_HEADERS_SENT) instead of ever
-    // reaching the client.
-    const catalog = listSkillgardenCatalog()
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(catalog))
-  } catch (err) {
-    res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
-  }
-}
-
-// Full SKILL.md body for the catalog's own "View" toggle — kept as a
-// separate route from the list above (rather than inlining every body
-// into it) for the same reason the Skills tab's own edit form fetches a
-// skill's body lazily instead of shipping it in the initial list.
-function handleSkillgardenCatalogEntryGet(res: ServerResponse, category: string, id: string): void {
-  try {
-    // See handleSkillgardenCatalogGet's own comment for why this is
-    // computed before writeHead rather than inlined into .end()'s
-    // argument.
-    const entry = readSkillgardenCatalogEntry(category, id)
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(entry))
-  } catch (err) {
-    res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
-  }
-}
-
-// Installs a catalog entry into agents/:name/skills/ — delegates to
-// skillgarden's own addSkill (see skillgarden-admin.ts), which throws
-// plain Errors (no typed classes) for "unknown skill"/"already exists",
-// so those two are told apart by message shape rather than instanceof,
-// same as any other dependency that doesn't export typed errors for its
-// own failure modes.
-async function handleSkillgardenCatalogAdd(req: IncomingMessage, res: ServerResponse, agentName: string, category: string, id: string): Promise<void> {
-  if (!getEntry(agentName)) {
-    res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: `unknown agent '${agentName}'` }))
-    return
-  }
-  const body = await readJsonBody(req)
-  const force = body.force === true
-  try {
-    const result = addSkillgardenSkillToAgent(agentName, category, id, force)
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, id: result.id }))
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    const status = /already exists/.test(message) ? 409 : /^Unknown skill/.test(message) ? 404 : 500
-    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error: message }))
-  }
 }
 
 // Backs the Actauth tab's rule editor — parses a rule body shared by both
@@ -2177,23 +2113,6 @@ const server = createServer(async (req, res) => {
     const envVarMatch = pathname.match(/^\/agents\/([^/]+)\/env\/([^/]+)$/)
     if (envVarMatch && req.method === 'PUT') {
       await handleEnvPut(req, res, decodeURIComponent(envVarMatch[1]), decodeURIComponent(envVarMatch[2]))
-      return
-    }
-
-    // Backs the Skills tab's "Browse skillgarden catalog" section — see
-    // the three handlers above it.
-    if (req.method === 'GET' && pathname === '/skillgarden-catalog') {
-      handleSkillgardenCatalogGet(res)
-      return
-    }
-    const skillgardenEntryMatch = req.method === 'GET' && pathname.match(/^\/skillgarden-catalog\/([^/]+)\/([^/]+)$/)
-    if (skillgardenEntryMatch) {
-      handleSkillgardenCatalogEntryGet(res, decodeURIComponent(skillgardenEntryMatch[1]), decodeURIComponent(skillgardenEntryMatch[2]))
-      return
-    }
-    const skillgardenAddMatch = req.method === 'POST' && pathname.match(/^\/agents\/([^/]+)\/skillgarden-catalog\/([^/]+)\/([^/]+)$/)
-    if (skillgardenAddMatch) {
-      await handleSkillgardenCatalogAdd(req, res, decodeURIComponent(skillgardenAddMatch[1]), decodeURIComponent(skillgardenAddMatch[2]), decodeURIComponent(skillgardenAddMatch[3]))
       return
     }
 
